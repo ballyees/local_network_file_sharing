@@ -1,0 +1,4 @@
+daphne
+Django
+channels
+whitenoise

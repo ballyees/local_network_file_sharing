@@ -1,0 +1,91 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <!-- uuid JS -->
+    <script
+      src="{% static 'js/uuid.js' %}"
+    ></script>
+    <title>File shared</title>
+  </head>
+  <body>
+    <div id="app" class="container">
+      <div style="text-align: center; margin: 5%">
+        <input id="add-file-image" type="file" webkitdirectory directory multiple />
+        <button class="btn btn-primary">Upload</button>
+      </div>
+      <div id="display">
+      </div>
+    </div>
+    <script>
+      var files = [];
+      const input = document.querySelector("input")
+      const btn = document.querySelector('button')
+      input.addEventListener("change", (e) => {
+        const buffer_files = e.target.files;
+        if (buffer_files.length) {
+          files = new Array(buffer_files.length); // prepare array for files and reset old files
+          for (let i = 0; i < buffer_files.length; i++) {
+            const file = buffer_files[i];
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              files[i] = {
+                name: file.name,
+                type: file.type,
+                data: e.target.result,
+              };
+            };
+            reader.readAsArrayBuffer(file);
+          }
+        }
+      })
+      btn.addEventListener("click", (e) => {
+        console.log("starting send files")
+        if (files){
+          const ul = document.createElement('ul')
+          const display = document.querySelector('#display')
+          display.appendChild(ul)
+          new Promise((resolve) => {
+            const promises = files.map((file) => {
+              return new Promise((resolveFiles) => {
+                const session = uuid.v4().toString().split("-").join("");
+                const wsPrefix = window.location.protocol === "https:" ? "wss" : "ws";
+                const ws = new WebSocket(`${wsPrefix}://${window.location.host}/ws/files/${session}/`)
+                ws.onopen = function (event) {
+                  const streamReader = new Blob([file.data]).stream().getReader()
+                  streamReader.read().then(function readFiles({done, value}) {
+                    if(done){
+                      console.log(file.name, 'done')
+                      ws.send(JSON.stringify({
+                          done: true,
+                          name: file.name,
+                          type: file.type,
+                        })
+                      )
+                      ws.close()
+                      const node = document.createElement("li")
+                      node.innerText = "upload file: " + file.name + " done!" 
+                      ul.appendChild(node)
+                      resolveFiles()
+                      return
+                    }else{
+                      ws.send(value)
+                    }
+                    return streamReader.read().then(readFiles)
+                  })
+                }
+              })
+            });
+            Promise.all(promises).then(() => {
+              display.appendChild(document.createElement('hr'))
+              resolve();
+            });
+          }).then(()=>{
+            files = []; // delete all file
+          })
+        }
+      })
+    </script>
+  </body>
+</html>
