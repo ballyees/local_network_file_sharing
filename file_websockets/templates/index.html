@@ -56,24 +56,29 @@
                   const streamReader = new Blob([file.data]).stream().getReader()
                   streamReader.read().then(function readFiles({done, value}) {
                     if(done){
-                      console.log(file.name, 'done')
                       ws.send(JSON.stringify({
                           done: true,
                           name: file.name,
                           type: file.type,
                         })
                       )
-                      ws.close()
-                      const node = document.createElement("li")
-                      node.innerText = "upload file: " + file.name + " done!" 
-                      ul.appendChild(node)
-                      resolveFiles()
                       return
                     }else{
                       ws.send(value)
                     }
                     return streamReader.read().then(readFiles)
                   })
+                }
+                ws.onmessage = function (event) {
+                  const data = JSON.parse(event.data)
+                  if (data.done){
+                    console.log(file.name, 'done')
+                    ws.close()
+                    const node = document.createElement("li")
+                    node.innerText = "upload file: " + file.name + " done!" 
+                    ul.appendChild(node)
+                    resolveFiles()
+                  }
                 }
               })
             });

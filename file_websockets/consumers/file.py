@@ -20,7 +20,7 @@ class ReceiveFileConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, code):
         if self.done is False:
             try:
-                os_remove(self.path)
+                os_remove(os_path.join(self.dirs, self.path))
             except:
                 pass
         return await super().disconnect(code)
@@ -44,4 +44,46 @@ class ReceiveFileConsumer(AsyncWebsocketConsumer):
             with open(os_path.join(dirs, self.path), 'wb') as f:
                 for d in self.session_data:
                     f.write(d)
-            print('done:', name)
+            # print('done:', name)
+            await self.send(text_data=json.dumps({'done': True, 'filename': name}))
+            
+class ReceiveFileStreamConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.session = self.scope['url_route']['kwargs']['session']
+        await self.accept()
+        self.done = False
+        now = dt.now().isoformat()[:10]
+        self.dirs = os_path.join("file_download", now)
+        Path(self.dirs).mkdir(parents=True, exist_ok=True)
+        
+    async def disconnect(self, code):
+        if self.done is False:
+            try:
+                self.file.close()
+            except:
+                pass
+            try:
+                os_remove(os_path.join(self.dirs, self.path))
+            except:
+                pass
+        return await super().disconnect(code)
+
+    # Receive message from WebSocket
+    async def receive(self, text_data=None, bytes_data=None):
+        # text data for internal trigger
+        if bytes_data:
+            data = bytes_data
+        else:
+            data = json.loads(text_data)
+        if type(data) == bytes:
+            self.file.write(data)
+        else:
+            if data.get("is_start", False):
+                name = data.get('name')
+                self.path = f"{name}"
+                self.file = open(os_path.join(self.dirs, self.path), 'wb')
+            elif data.get("done", False):
+                self.file.close()
+                self.done = True
+                await self.send(text_data=json.dumps({'done': True, 'filename': self.path}))
+                
