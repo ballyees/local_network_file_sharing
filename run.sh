@@ -1,1 +1,1 @@
-daphne file_sharing.asgi:application -b 0.0.0.0
+python find_ip.py && daphne file_sharing.asgi:application -b 0.0.0.0 -p 80
